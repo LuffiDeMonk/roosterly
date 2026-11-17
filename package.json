@@ -12,9 +12,11 @@
     "dev:frontend": "npm run dev --workspace=@roosterly/frontend",
     "build": "npm run build --workspace=@roosterly/backend && npm run build --workspace=@roosterly/frontend",
     "build:backend": "npm run build --workspace=@roosterly/backend",
-    "build:frontend": "npm run build --workspace=@roosterly/frontend"
+    "build:frontend": "npm run build --workspace=@roosterly/frontend",
+    "build:vercel": "node scripts/build-vercel.mjs"
   },
   "devDependencies": {
-    "concurrently": "^10.0.6"
+    "concurrently": "^10.0.6",
+    "esbuild": "^0.28.2"
   }
 }

@@ -1,6 +1,7 @@
-import express, { type Request, type Response } from 'express';
+import express, { type Request, type Response, type NextFunction } from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
+import apiRouter from './routes/index.js';
 
 dotenv.config();
 
@@ -15,30 +16,19 @@ app.use(
 );
 app.use(express.json());
 
-// Main API Router
-const router = express.Router();
+// Mount API router
+// Mount on '/api/v1', '/api', and '/' to seamlessly support Vercel serverless proxying and local dev
+app.use('/api/v1', apiRouter);
+app.use('/api', apiRouter);
+app.use('/', apiRouter);
 
-router.get('/', (_req: Request, res: Response) => {
-  res.json({
-    status: 'ok',
-    service: 'Roosterly API',
-    message: 'Roosterly backend running',
-    version: '1.0.0',
-    timestamp: new Date().toISOString(),
+// Global Error Handler
+app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  console.error('API Error:', err);
+  const status = err.status || err.statusCode || 500;
+  res.status(status).json({
+    error: err.message || 'Internal Server Error',
   });
 });
-
-router.get('/health', (_req: Request, res: Response) => {
-  res.json({
-    status: 'healthy',
-    service: 'Roosterly API',
-    timestamp: new Date().toISOString(),
-  });
-});
-
-// Mount router on both '/api' and '/'
-// This ensures routes match whether accessed directly on port 5000 or routed via Vercel Serverless Function
-app.use('/api', router);
-app.use('/', router);
 
 export default app;
