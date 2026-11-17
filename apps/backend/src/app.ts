@@ -21,7 +21,17 @@ const router = express.Router();
 router.get('/', (_req: Request, res: Response) => {
   res.json({
     status: 'ok',
-    message: 'Hab-Track backend running',
+    service: 'Roosterly API',
+    message: 'Roosterly backend running',
+    version: '1.0.0',
+    timestamp: new Date().toISOString(),
+  });
+});
+
+router.get('/health', (_req: Request, res: Response) => {
+  res.json({
+    status: 'healthy',
+    service: 'Roosterly API',
     timestamp: new Date().toISOString(),
   });
 });
