@@ -10,33 +10,103 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as InchargeRouteImport } from './routes/incharge'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as RegisterRouteImport } from './routes/register'
+import { Route as RosterRouteImport } from './routes/roster'
+import { Route as SwapsRouteImport } from './routes/swaps'
+import { Route as TeamRouteImport } from './routes/team'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const InchargeRoute = InchargeRouteImport.update({
+  id: '/incharge',
+  path: '/incharge',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RegisterRoute = RegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RosterRoute = RosterRouteImport.update({
+  id: '/roster',
+  path: '/roster',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SwapsRoute = SwapsRouteImport.update({
+  id: '/swaps',
+  path: '/swaps',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TeamRoute = TeamRouteImport.update({
+  id: '/team',
+  path: '/team',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/incharge': typeof InchargeRoute
+  '/login': typeof LoginRoute
+  '/register': typeof RegisterRoute
+  '/roster': typeof RosterRoute
+  '/swaps': typeof SwapsRoute
+  '/team': typeof TeamRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/incharge': typeof InchargeRoute
+  '/login': typeof LoginRoute
+  '/register': typeof RegisterRoute
+  '/roster': typeof RosterRoute
+  '/swaps': typeof SwapsRoute
+  '/team': typeof TeamRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/incharge': typeof InchargeRoute
+  '/login': typeof LoginRoute
+  '/register': typeof RegisterRoute
+  '/roster': typeof RosterRoute
+  '/swaps': typeof SwapsRoute
+  '/team': typeof TeamRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    '/' | '/incharge' | '/login' | '/register' | '/roster' | '/swaps' | '/team'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    '/' | '/incharge' | '/login' | '/register' | '/roster' | '/swaps' | '/team'
+  id:
+    | '__root__'
+    | '/'
+    | '/incharge'
+    | '/login'
+    | '/register'
+    | '/roster'
+    | '/swaps'
+    | '/team'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  InchargeRoute: typeof InchargeRoute
+  LoginRoute: typeof LoginRoute
+  RegisterRoute: typeof RegisterRoute
+  RosterRoute: typeof RosterRoute
+  SwapsRoute: typeof SwapsRoute
+  TeamRoute: typeof TeamRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +118,59 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/incharge': {
+      id: '/incharge'
+      path: '/incharge'
+      fullPath: '/incharge'
+      preLoaderRoute: typeof InchargeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/register': {
+      id: '/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/roster': {
+      id: '/roster'
+      path: '/roster'
+      fullPath: '/roster'
+      preLoaderRoute: typeof RosterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/swaps': {
+      id: '/swaps'
+      path: '/swaps'
+      fullPath: '/swaps'
+      preLoaderRoute: typeof SwapsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/team': {
+      id: '/team'
+      path: '/team'
+      fullPath: '/team'
+      preLoaderRoute: typeof TeamRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  InchargeRoute: InchargeRoute,
+  LoginRoute: LoginRoute,
+  RegisterRoute: RegisterRoute,
+  RosterRoute: RosterRoute,
+  SwapsRoute: SwapsRoute,
+  TeamRoute: TeamRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
