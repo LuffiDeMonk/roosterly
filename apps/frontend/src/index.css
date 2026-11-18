@@ -147,4 +147,25 @@
   html {
     @apply font-sans;
   }
+
+  /* Browser autofill normalization & border preservation */
+  input:is(:autofill, :-webkit-autofill),
+  textarea:is(:autofill, :-webkit-autofill),
+  select:is(:autofill, :-webkit-autofill) {
+    -webkit-text-fill-color: var(--foreground) !important;
+    caret-color: var(--foreground);
+    -webkit-box-shadow: 0 0 0 1000px var(--secondary) inset !important;
+    box-shadow: 0 0 0 1000px var(--secondary) inset !important;
+    transition: background-color 5000s ease-in-out 0s;
+    border-radius: inherit;
+  }
+
+  .dark input:is(:autofill, :-webkit-autofill),
+  .dark textarea:is(:autofill, :-webkit-autofill),
+  .dark select:is(:autofill, :-webkit-autofill) {
+    -webkit-text-fill-color: var(--foreground) !important;
+    caret-color: var(--foreground);
+    -webkit-box-shadow: 0 0 0 1000px var(--card) inset !important;
+    box-shadow: 0 0 0 1000px var(--card) inset !important;
+  }
 }

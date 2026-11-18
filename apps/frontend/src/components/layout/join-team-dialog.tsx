@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import {
   Dialog,
   DialogContent,
@@ -9,8 +11,17 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 import { useTeam } from '@/context/team-context';
 import { toast } from '@/components/ui/sonner';
+import { joinTeamSchema, type JoinTeamFormValues } from '@/schemas/team';
 
 interface JoinTeamDialogProps {
   open: boolean;
@@ -19,23 +30,19 @@ interface JoinTeamDialogProps {
 
 export const JoinTeamDialog: React.FC<JoinTeamDialogProps> = ({ open, onOpenChange }) => {
   const { joinTeamByCode } = useTeam();
-  const [code, setCode] = useState('');
-  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!code.trim()) {
-      toast.error('Please enter a team code');
-      return;
-    }
+  const form = useForm<JoinTeamFormValues>({
+    resolver: zodResolver(joinTeamSchema),
+    defaultValues: {
+      code: '',
+    },
+  });
 
-    setSubmitting(true);
-    const res = await joinTeamByCode(code);
-    setSubmitting(false);
-
+  const onSubmit = async (values: JoinTeamFormValues) => {
+    const res = await joinTeamByCode(values.code);
     if (res.success) {
       toast.success(res.message || 'Ward team joined!');
-      setCode('');
+      form.reset();
       onOpenChange(false);
     } else {
       toast.error(res.message || 'Failed to join ward team');
@@ -45,40 +52,57 @@ export const JoinTeamDialog: React.FC<JoinTeamDialogProps> = ({ open, onOpenChan
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
-        <form onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle>Join a Ward or Department</DialogTitle>
-            <DialogDescription>
-              Enter the 6-character code provided by your ward supervisor or facility administrator.
-            </DialogDescription>
-          </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)}>
+            <DialogHeader>
+              <DialogTitle>Join a Ward or Department</DialogTitle>
+              <DialogDescription>
+                Enter the 6-character code provided by your ward supervisor or facility administrator.
+              </DialogDescription>
+            </DialogHeader>
 
-          <div className="py-4 space-y-4">
-            <Input
-              label="6-Character Ward Code"
-              placeholder="e.g. ED4B92"
-              value={code}
-              onChange={(e) => setCode(e.target.value.toUpperCase())}
-              maxLength={6}
-              className="text-center font-mono tracking-widest uppercase text-lg"
-              autoFocus
-            />
-          </div>
+            <div className="py-4 space-y-4">
+              <FormField
+                control={form.control}
+                name="code"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>6-Character Ward Code</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="e.g. ED4B92"
+                        maxLength={6}
+                        className="text-center font-mono tracking-widest uppercase text-lg"
+                        autoFocus
+                        {...field}
+                        onChange={(e) => field.onChange(e.target.value.toUpperCase())}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={submitting}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" loading={submitting} disabled={code.trim().length !== 6}>
-              Join Ward
-            </Button>
-          </DialogFooter>
-        </form>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={form.formState.isSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                loading={form.formState.isSubmitting}
+                disabled={!form.formState.isValid}
+              >
+                Join Ward
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

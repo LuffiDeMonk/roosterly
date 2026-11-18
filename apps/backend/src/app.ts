@@ -1,6 +1,7 @@
 import express, { type Request, type Response, type NextFunction } from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import apiRouter from './routes/index.js';
 
 dotenv.config();
@@ -15,6 +16,7 @@ app.use(
   })
 );
 app.use(express.json());
+app.use(cookieParser());
 
 // Mount API router
 // Mount on '/api/v1', '/api', and '/' to seamlessly support Vercel serverless proxying and local dev

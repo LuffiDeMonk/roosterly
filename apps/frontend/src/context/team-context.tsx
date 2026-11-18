@@ -36,20 +36,25 @@ export const TeamProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setIsLoading(true);
     try {
       const res = await api.get('/api/teams');
-      if (res.data?.success && Array.isArray(res.data.teams)) {
-        const fetchedTeams: Team[] = res.data.teams;
-        setTeams(fetchedTeams);
+      const fetchedTeams: Team[] =
+        (Array.isArray(res.data?.teams) && res.data.teams) ||
+        (Array.isArray(res.data?.memberships) &&
+          res.data.memberships
+            .map((m: any) => m.teamId)
+            .filter((t: any) => t && typeof t === 'object' && t._id)) ||
+        [];
 
-        if (fetchedTeams.length > 0) {
-          const storedId = typeof window !== 'undefined' ? localStorage.getItem(ACTIVE_TEAM_KEY) : null;
-          const match = fetchedTeams.find((t) => t._id === storedId) || fetchedTeams[0];
-          setCurrentTeam(match);
-          if (typeof window !== 'undefined') {
-            localStorage.setItem(ACTIVE_TEAM_KEY, match._id);
-          }
-        } else {
-          setCurrentTeam(null);
+      setTeams(fetchedTeams);
+
+      if (fetchedTeams.length > 0) {
+        const storedId = typeof window !== 'undefined' ? localStorage.getItem(ACTIVE_TEAM_KEY) : null;
+        const match = fetchedTeams.find((t) => t._id === storedId) || fetchedTeams[0];
+        setCurrentTeam(match);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(ACTIVE_TEAM_KEY, match._id);
         }
+      } else {
+        setCurrentTeam(null);
       }
     } catch (err) {
       console.error('Failed to load teams:', err);
@@ -60,7 +65,7 @@ export const TeamProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   useEffect(() => {
     refreshTeams();
-  }, [refreshTeams]);
+  }, [refreshTeams, memberships]);
 
   const selectTeamById = (teamId: string) => {
     const found = teams.find((t) => t._id === teamId);
@@ -86,7 +91,7 @@ export const TeamProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const joinTeamByCode = async (code: string): Promise<{ success: boolean; message?: string }> => {
     try {
       const res = await api.post('/api/teams/join', { code: code.trim().toUpperCase() });
-      if (res.data?.success) {
+      if (res.data?.team || res.data?.membership || res.data?.success) {
         await refreshTeams();
         return { success: true, message: res.data.message || 'Joined ward team successfully' };
       }
@@ -102,11 +107,11 @@ export const TeamProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   ): Promise<{ success: boolean; team?: Team; message?: string }> => {
     try {
       const res = await api.post('/api/teams', { name, department });
-      if (res.data?.success && res.data.team) {
-        const newTeam = res.data.team;
+      const newTeam = res.data?.team;
+      if (newTeam) {
         await refreshTeams();
         handleSetCurrentTeam(newTeam);
-        return { success: true, team: newTeam, message: 'Ward team created successfully' };
+        return { success: true, team: newTeam, message: res.data?.message || 'Ward team created successfully' };
       }
       return { success: false, message: res.data?.message || 'Failed to create ward team' };
     } catch (err: any) {

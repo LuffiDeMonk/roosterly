@@ -12,11 +12,13 @@ export type UserStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'INVITED';
 export interface User {
   _id: string;
   email: string;
+  name?: string;
   firstName: string;
   lastName: string;
   roles: UserRole[];
   status: UserStatus;
   phone?: string;
+  avatar?: string;
   avatarUrl?: string;
   department?: string;
   jobTitle?: string;

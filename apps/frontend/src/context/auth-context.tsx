@@ -1,15 +1,19 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import api from '@/api/axios';
+import { queryClient } from '@/lib/query-client';
 import type { User, Membership } from '@/types';
 
 interface RegisterPayload {
   email: string;
   password: string;
-  firstName: string;
-  lastName: string;
+  firstName?: string;
+  lastName?: string;
+  name?: string;
   teamCode?: string;
   orgName?: string;
+  organizationName?: string;
   facilityName?: string;
+  role?: string;
 }
 
 interface AuthContextType {
@@ -20,7 +24,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; message?: string }>;
   register: (payload: RegisterPayload) => Promise<{ success: boolean; message?: string }>;
-  logout: () => void;
+  logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
 
@@ -35,6 +39,28 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [memberships, setMemberships] = useState<Membership[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
+  const clearLocalAuth = useCallback(() => {
+    setToken(null);
+    setUser(null);
+    setMemberships([]);
+    queryClient.clear();
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
+      localStorage.removeItem('roosterly_active_team_id');
+    }
+  }, []);
+
+  const logout = useCallback(async () => {
+    try {
+      await api.post('/api/auth/logout');
+    } catch (err) {
+      console.error('Logout API call failed:', err);
+    } finally {
+      clearLocalAuth();
+    }
+  }, [clearLocalAuth]);
+
   const refreshUser = useCallback(async () => {
     try {
       const res = await api.get('/api/auth/me');
@@ -47,10 +73,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     } catch (err: unknown) {
       console.error('Failed to refresh user profile:', err);
-      // If unauthorized, clear state
-      logout();
+      clearLocalAuth();
     }
-  }, []);
+  }, [clearLocalAuth]);
 
   useEffect(() => {
     const initializeAuth = async () => {
@@ -60,15 +85,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         if (storedToken) {
           setToken(storedToken);
-          if (storedUser) {
-            try {
-              setUser(JSON.parse(storedUser));
-            } catch {
-              localStorage.removeItem(USER_KEY);
-            }
-          }
-          await refreshUser();
         }
+        if (storedUser) {
+          try {
+            setUser(JSON.parse(storedUser));
+          } catch {
+            localStorage.removeItem(USER_KEY);
+          }
+        }
+        // Validate session via httpOnly cookie or stored token
+        await refreshUser();
       }
       setIsLoading(false);
     };
@@ -132,17 +158,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const logout = () => {
-    setToken(null);
-    setUser(null);
-    setMemberships([]);
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem(TOKEN_KEY);
-      localStorage.removeItem(USER_KEY);
-      localStorage.removeItem('roosterly_active_team_id');
-    }
-  };
-
   return (
     <AuthContext.Provider
       value={{
@@ -150,7 +165,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         token,
         memberships,
         isLoading,
-        isAuthenticated: !!token && !!user,
+        isAuthenticated: !!user,
         login,
         register,
         logout,

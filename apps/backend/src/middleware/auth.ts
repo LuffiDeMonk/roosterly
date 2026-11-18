@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { User, type IUser } from '../models/User.js';
+import { User } from '../models/User.js';
 
 export interface AuthUser {
   _id: string;
@@ -19,9 +19,15 @@ declare global {
   }
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || 'roosterly-dev-secret-jwt-key-2026';
+const getJwtSecret = (): string =>
+  process.env.JWT_SECRET || 'roosterly-dev-jwt-secret-key-default-2026';
 
-export const generateToken = (user: { _id: any; email: string; name: string; roles: string[] }): string => {
+export const generateToken = (user: {
+  _id: any;
+  email: string;
+  name: string;
+  roles: string[];
+}): string => {
   return jwt.sign(
     {
       _id: user._id.toString(),
@@ -29,9 +35,22 @@ export const generateToken = (user: { _id: any; email: string; name: string; rol
       name: user.name,
       roles: user.roles,
     },
-    JWT_SECRET,
+    getJwtSecret(),
     { expiresIn: '7d' }
   );
+};
+
+export const extractToken = (req: Request): string | null => {
+  // 1. Check cookies first (httpOnly secure cookie)
+  if (req.cookies && req.cookies.roosterly_token) {
+    return req.cookies.roosterly_token;
+  }
+  // 2. Check Authorization Bearer header as fallback
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return authHeader.split(' ')[1] || null;
+  }
+  return null;
 };
 
 export const requireAuth = async (
@@ -40,19 +59,16 @@ export const requireAuth = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      res.status(401).json({ error: 'Authentication required. No Bearer token provided.' });
-      return;
-    }
-
-    const token = authHeader.split(' ')[1];
+    const token = extractToken(req);
     if (!token) {
-      res.status(401).json({ error: 'Malformed authorization token.' });
+      res.status(401).json({
+        success: false,
+        message: 'Authentication required. No session cookie or Bearer token provided.',
+      });
       return;
     }
 
-    const decoded = jwt.verify(token, JWT_SECRET) as {
+    const decoded = jwt.verify(token, getJwtSecret()) as {
       _id: string;
       email: string;
       name: string;
@@ -61,7 +77,10 @@ export const requireAuth = async (
 
     const user = await User.findById(decoded._id).select('-passwordHash');
     if (!user || user.status !== 'ACTIVE') {
-      res.status(401).json({ error: 'User account not found or is inactive.' });
+      res.status(401).json({
+        success: false,
+        message: 'User account not found or is inactive.',
+      });
       return;
     }
 
@@ -74,7 +93,10 @@ export const requireAuth = async (
 
     next();
   } catch (error) {
-    res.status(401).json({ error: 'Invalid or expired token.' });
+    res.status(401).json({
+      success: false,
+      message: 'Invalid or expired session token.',
+    });
   }
 };
 
@@ -84,10 +106,9 @@ export const optionalAuth = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.split(' ')[1];
-      const decoded = jwt.verify(token, JWT_SECRET) as {
+    const token = extractToken(req);
+    if (token) {
+      const decoded = jwt.verify(token, getJwtSecret()) as {
         _id: string;
         email: string;
         name: string;

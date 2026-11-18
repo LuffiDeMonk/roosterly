@@ -1,7 +1,11 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { useState, useEffect, useCallback } from 'react';
-import api from '@/api/axios';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/context/auth-context';
 import { useTeam } from '@/context/team-context';
+import {
+  useTeamMembersQuery,
+  useUpdateMemberStatusMutation,
+} from '@/hooks/queries/use-team-members';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -24,30 +28,27 @@ export const Route = createFileRoute('/team')({
 });
 
 export function TeamPage() {
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { currentTeam, isSupervisor } = useTeam();
-  const [members, setMembers] = useState<Membership[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
-
-  const fetchMembers = useCallback(async () => {
-    if (!currentTeam?._id) return;
-    setLoading(true);
-    try {
-      const res = await api.get(`/api/teams/${currentTeam._id}/members`);
-      if (res.data?.success && Array.isArray(res.data.members)) {
-        setMembers(res.data.members);
-      }
-    } catch (err) {
-      console.error('Failed to load members:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [currentTeam?._id]);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    fetchMembers();
-  }, [fetchMembers]);
+    if (!authLoading && !isAuthenticated) {
+      navigate({ to: '/login' });
+    }
+  }, [authLoading, isAuthenticated, navigate]);
+
+  const [copied, setCopied] = useState(false);
+
+  // TanStack Query & Mutation
+  const {
+    data: members = [],
+    isLoading: loading,
+    isFetching,
+    refetch,
+  } = useTeamMembersQuery(currentTeam?._id);
+
+  const statusMutation = useUpdateMemberStatusMutation(currentTeam?._id);
 
   const handleCopyCode = () => {
     if (currentTeam?.code) {
@@ -58,26 +59,8 @@ export function TeamPage() {
     }
   };
 
-  const handleStatusUpdate = async (memberId: string, status: 'ACTIVE' | 'REJECTED') => {
-    if (!currentTeam?._id) return;
-    setActionLoading(memberId);
-    try {
-      const res = await api.patch(`/api/teams/${currentTeam._id}/members/${memberId}`, { status });
-      if (res.data?.success) {
-        toast.success(
-          status === 'ACTIVE'
-            ? 'Member approved into ward team!'
-            : 'Join request rejected.'
-        );
-        fetchMembers();
-      } else {
-        toast.error(res.data?.message || 'Failed to update member status');
-      }
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Error updating member');
-    } finally {
-      setActionLoading(null);
-    }
+  const handleStatusUpdate = (memberId: string, status: 'ACTIVE' | 'REJECTED') => {
+    statusMutation.mutate({ memberId, status });
   };
 
   if (!currentTeam) {
@@ -94,8 +77,8 @@ export function TeamPage() {
     );
   }
 
-  const activeMembers = members.filter((m) => m.status === 'ACTIVE');
-  const pendingMembers = members.filter((m) => m.status === 'PENDING');
+  const activeMembers = members.filter((m: Membership) => m.status === 'ACTIVE');
+  const pendingMembers = members.filter((m: Membership) => m.status === 'PENDING');
 
   return (
     <div className="container mx-auto px-4 sm:px-6 py-6 space-y-6">
@@ -139,8 +122,8 @@ export function TeamPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={fetchMembers}
-              loading={loading}
+              onClick={() => refetch()}
+              loading={loading || isFetching}
               title="Refresh Members"
               className="h-10 px-3 self-stretch sm:self-auto"
             >
@@ -158,10 +141,12 @@ export function TeamPage() {
             Pending Join Requests ({pendingMembers.length})
           </h2>
           <div className="space-y-2">
-            {pendingMembers.map((member) => {
+            {pendingMembers.map((member: Membership) => {
               const u = member.user || (member as any).userId;
               const name = u ? `${u.firstName || ''} ${u.lastName || ''}`.trim() : 'Prospective Staff';
               const email = u?.email || 'No email';
+              const isUpdating =
+                statusMutation.isPending && statusMutation.variables?.memberId === member._id;
 
               return (
                 <Card key={member._id} className="border border-amber-500/30 bg-amber-50/10 dark:bg-amber-950/10">
@@ -183,7 +168,7 @@ export function TeamPage() {
                         size="sm"
                         variant="outline"
                         onClick={() => handleStatusUpdate(member._id, 'REJECTED')}
-                        loading={actionLoading === member._id}
+                        loading={isUpdating && statusMutation.variables?.status === 'REJECTED'}
                         className="h-8 text-xs text-destructive hover:bg-destructive/10"
                       >
                         <UserX className="h-3.5 w-3.5 mr-1" />
@@ -192,7 +177,7 @@ export function TeamPage() {
                       <Button
                         size="sm"
                         onClick={() => handleStatusUpdate(member._id, 'ACTIVE')}
-                        loading={actionLoading === member._id}
+                        loading={isUpdating && statusMutation.variables?.status === 'ACTIVE'}
                         className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
                       >
                         <UserCheck className="h-3.5 w-3.5 mr-1" />
@@ -215,7 +200,7 @@ export function TeamPage() {
         </h2>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {activeMembers.map((member) => {
+          {activeMembers.map((member: Membership) => {
             const u = member.user || (member as any).userId;
             const name = u ? `${u.firstName || ''} ${u.lastName || ''}`.trim() : 'Staff Member';
             const email = u?.email || 'No email';

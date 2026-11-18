@@ -1,11 +1,11 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { useState, useEffect, useCallback } from 'react';
-import api from '@/api/axios';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/context/auth-context';
 import { useTeam } from '@/context/team-context';
+import { useRosterQuery, usePublishRosterMutation } from '@/hooks/queries/use-roster';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-import { toast } from '@/components/ui/sonner';
 import {
   Calendar as CalendarIcon,
   ChevronLeft,
@@ -28,7 +28,15 @@ interface MemberRow {
 }
 
 export function RosterPage() {
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { currentTeam, isSupervisor } = useTeam();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      navigate({ to: '/login' });
+    }
+  }, [authLoading, isAuthenticated, navigate]);
 
   // Anchor to current Monday
   const [currentMonday, setCurrentMonday] = useState<Date>(() => {
@@ -40,12 +48,21 @@ export function RosterPage() {
     return monday;
   });
 
-  const [loading, setLoading] = useState(false);
-  const [rosterId, setRosterId] = useState<string | null>(null);
-  const [rosterStatus, setRosterStatus] = useState<'DRAFT' | 'PUBLISHED' | 'ARCHIVED'>('DRAFT');
-  const [members, setMembers] = useState<MemberRow[]>([]);
-  const [shiftTypes, setShiftTypes] = useState<ShiftType[]>([]);
-  const [publishing, setPublishing] = useState(false);
+  const formatDateYMD = (date: Date): string => {
+    return date.toISOString().split('T')[0];
+  };
+
+  const dateStr = formatDateYMD(currentMonday);
+
+  // TanStack Query for weekly roster data
+  const {
+    data,
+    isLoading: loading,
+    isFetching,
+    refetch,
+  } = useRosterQuery(currentTeam?._id, dateStr);
+
+  const publishMutation = usePublishRosterMutation(currentTeam?._id);
 
   // Compute 7 days of the week starting from currentMonday
   const weekDates = Array.from({ length: 7 }, (_, i) => {
@@ -54,62 +71,37 @@ export function RosterPage() {
     return d;
   });
 
-  const formatDateYMD = (date: Date): string => {
-    return date.toISOString().split('T')[0];
-  };
+  const rosterId = data?.roster?._id || null;
+  const rosterStatus = data?.roster?.status || 'DRAFT';
+  const shiftTypes: ShiftType[] = data?.shiftTypes || [];
+  const fetchedMembers = data?.members || [];
+  const fetchedAssignments: Assignment[] = data?.assignments || [];
 
-  const fetchRoster = useCallback(async () => {
-    if (!currentTeam?._id) return;
-    setLoading(true);
-    try {
-      const dateStr = formatDateYMD(currentMonday);
-      const res = await api.get(`/api/rosters/week?teamId=${currentTeam._id}&date=${dateStr}`);
+  // Build grid rows
+  const members: MemberRow[] = fetchedMembers.map((m: any) => {
+    const userObj = m.user || m.userId;
+    const uId = userObj?._id || m.userId;
+    const name = userObj
+      ? `${userObj.firstName || ''} ${userObj.lastName || ''}`.trim()
+      : 'Staff Member';
 
-      if (res.data?.success) {
-        setRosterId(res.data.roster?._id || null);
-        setRosterStatus(res.data.roster?.status || 'DRAFT');
-
-        const fetchedShiftTypes: ShiftType[] = res.data.shiftTypes || [];
-        setShiftTypes(fetchedShiftTypes);
-
-        const fetchedMembers = res.data.members || [];
-        const fetchedAssignments: Assignment[] = res.data.assignments || [];
-
-        // Build grid rows
-        const rows: MemberRow[] = fetchedMembers.map((m: any) => {
-          const userObj = m.user || m.userId;
-          const uId = userObj?._id || m.userId;
-          const name = userObj ? `${userObj.firstName || ''} ${userObj.lastName || ''}`.trim() : 'Staff Member';
-
-          const memberAssignments: Record<string, Assignment> = {};
-          fetchedAssignments.forEach((a) => {
-            const aEmpId = typeof a.employeeId === 'object' ? (a.employeeId as any)._id : a.employeeId;
-            if (aEmpId === uId) {
-              const aDate = typeof a.date === 'string' ? a.date.split('T')[0] : '';
-              memberAssignments[aDate] = a;
-            }
-          });
-
-          return {
-            userId: uId,
-            name: name || 'Nurse',
-            role: m.role,
-            assignments: memberAssignments,
-          };
-        });
-
-        setMembers(rows);
+    const memberAssignments: Record<string, Assignment> = {};
+    fetchedAssignments.forEach((a) => {
+      const aEmpId =
+        typeof a.employeeId === 'object' ? (a.employeeId as any)._id : a.employeeId;
+      if (aEmpId === uId) {
+        const aDate = typeof a.date === 'string' ? a.date.split('T')[0] : '';
+        memberAssignments[aDate] = a;
       }
-    } catch (err) {
-      console.error('Failed to load roster:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [currentTeam?._id, currentMonday]);
+    });
 
-  useEffect(() => {
-    fetchRoster();
-  }, [fetchRoster]);
+    return {
+      userId: uId,
+      name: name || 'Nurse',
+      role: m.role,
+      assignments: memberAssignments,
+    };
+  });
 
   const prevWeek = () => {
     setCurrentMonday((prev) => {
@@ -129,24 +121,9 @@ export function RosterPage() {
 
   const currentWeekLabel = `${weekDates[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${weekDates[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
 
-  const handlePublish = async () => {
-    if (!rosterId) {
-      toast.error('No draft roster created yet');
-      return;
-    }
-    setPublishing(true);
-    try {
-      const res = await api.post(`/api/rosters/${rosterId}/publish`);
-      if (res.data?.success) {
-        toast.success('Roster published! Shift notifications dispatched to ward staff.');
-        setRosterStatus('PUBLISHED');
-      } else {
-        toast.error(res.data?.message || 'Failed to publish roster');
-      }
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Error publishing roster');
-    } finally {
-      setPublishing(false);
+  const handlePublish = () => {
+    if (rosterId) {
+      publishMutation.mutate(rosterId);
     }
   };
 
@@ -202,8 +179,8 @@ export function RosterPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={fetchRoster}
-            loading={loading}
+            onClick={() => refetch()}
+            loading={loading || isFetching}
             title="Refresh Roster"
             className="h-9 px-2.5"
           >
@@ -214,8 +191,8 @@ export function RosterPage() {
             <Button
               size="sm"
               onClick={handlePublish}
-              loading={publishing}
-              disabled={rosterStatus === 'PUBLISHED'}
+              loading={publishMutation.isPending}
+              disabled={rosterStatus === 'PUBLISHED' || !rosterId}
               className="h-9 text-xs gap-1.5"
             >
               <Send className="h-3.5 w-3.5" />

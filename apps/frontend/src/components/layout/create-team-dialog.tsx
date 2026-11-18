@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import {
   Dialog,
   DialogContent,
@@ -9,8 +11,17 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 import { useTeam } from '@/context/team-context';
 import { toast } from '@/components/ui/sonner';
+import { createTeamSchema, type CreateTeamFormValues } from '@/schemas/team';
 
 interface CreateTeamDialogProps {
   open: boolean;
@@ -19,25 +30,20 @@ interface CreateTeamDialogProps {
 
 export const CreateTeamDialog: React.FC<CreateTeamDialogProps> = ({ open, onOpenChange }) => {
   const { createTeam } = useTeam();
-  const [name, setName] = useState('');
-  const [department, setDepartment] = useState('');
-  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) {
-      toast.error('Ward/Unit name is required');
-      return;
-    }
+  const form = useForm<CreateTeamFormValues>({
+    resolver: zodResolver(createTeamSchema),
+    defaultValues: {
+      name: '',
+      department: '',
+    },
+  });
 
-    setSubmitting(true);
-    const res = await createTeam(name.trim(), department.trim() || undefined);
-    setSubmitting(false);
-
+  const onSubmit = async (values: CreateTeamFormValues) => {
+    const res = await createTeam(values.name, values.department || undefined);
     if (res.success && res.team) {
       toast.success(`Ward "${res.team.name}" created! Join code: ${res.team.code}`);
-      setName('');
-      setDepartment('');
+      form.reset();
       onOpenChange(false);
     } else {
       toast.error(res.message || 'Failed to create ward');
@@ -47,45 +53,71 @@ export const CreateTeamDialog: React.FC<CreateTeamDialogProps> = ({ open, onOpen
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
-        <form onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle>Create Ward or Shift Team</DialogTitle>
-            <DialogDescription>
-              Set up a new clinical ward, nursing unit, or department with its own shift schedule.
-            </DialogDescription>
-          </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)}>
+            <DialogHeader>
+              <DialogTitle>Create Ward or Shift Team</DialogTitle>
+              <DialogDescription>
+                Set up a new clinical ward, nursing unit, or department with its own shift schedule.
+              </DialogDescription>
+            </DialogHeader>
 
-          <div className="py-4 space-y-4">
-            <Input
-              label="Ward / Unit Name"
-              placeholder="e.g. Ward 4B – Acute Medicine"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              autoFocus
-            />
-            <Input
-              label="Department (Optional)"
-              placeholder="e.g. Internal Medicine / ICU"
-              value={department}
-              onChange={(e) => setDepartment(e.target.value)}
-            />
-          </div>
+            <div className="py-4 space-y-4">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Ward / Unit Name</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="e.g. Ward 4B – Acute Medicine"
+                        autoFocus
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={submitting}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" loading={submitting} disabled={!name.trim()}>
-              Create Ward
-            </Button>
-          </DialogFooter>
-        </form>
+              <FormField
+                control={form.control}
+                name="department"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Department (Optional)</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="e.g. Internal Medicine / ICU"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={form.formState.isSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                loading={form.formState.isSubmitting}
+                disabled={!form.formState.isValid}
+              >
+                Create Ward
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

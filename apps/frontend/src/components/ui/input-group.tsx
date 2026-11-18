@@ -8,7 +8,7 @@ export const InputGroup = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivEleme
       ref={ref}
       data-slot="input-group"
       className={cn(
-        "group/input-group relative flex h-11 has-[textarea]:h-auto w-full min-w-0 items-center rounded-xl border border-input bg-secondary text-foreground transition-all focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 dark:bg-card",
+        "group/input-group relative flex h-11 has-[textarea]:h-auto w-full min-w-0 items-center overflow-hidden rounded-xl border border-input bg-secondary text-foreground transition-all focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 dark:bg-card",
         className
       )}
       {...props}
@@ -51,7 +51,7 @@ export const InputGroupInput = forwardRef<HTMLInputElement, InputHTMLAttributes<
       ref={ref}
       data-slot="input-group-control"
       className={cn(
-        "flex h-full w-full min-w-0 bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none disabled:cursor-not-allowed disabled:opacity-50",
+        "flex h-full w-full min-w-0 rounded-[inherit] bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none disabled:cursor-not-allowed disabled:opacity-50",
         className
       )}
       {...props}
@@ -66,7 +66,7 @@ export const InputGroupTextarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAt
       ref={ref}
       data-slot="input-group-control"
       className={cn(
-        "flex min-h-[80px] w-full min-w-0 resize-y bg-transparent px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none disabled:cursor-not-allowed disabled:opacity-50",
+        "flex min-h-[80px] w-full min-w-0 resize-y rounded-[inherit] bg-transparent px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none disabled:cursor-not-allowed disabled:opacity-50",
         className
       )}
       {...props}

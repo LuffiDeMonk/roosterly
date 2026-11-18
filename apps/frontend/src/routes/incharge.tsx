@@ -1,7 +1,8 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { useState, useEffect, useCallback } from 'react';
-import api from '@/api/axios';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/context/auth-context';
 import { useTeam } from '@/context/team-context';
+import { useInChargeQuery } from '@/hooks/queries/use-incharge';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -23,39 +24,31 @@ export const Route = createFileRoute('/incharge')({
 });
 
 export function InChargePage() {
-  const { currentTeam } = useTeam();
-  const [loading, setLoading] = useState(false);
-  const [dateStr, setDateStr] = useState<string>(() => new Date().toISOString().split('T')[0]);
-  const [coverageSlots, setCoverageSlots] = useState<CoverageSlot[]>([]);
-  const [pendingSwaps, setPendingSwaps] = useState(0);
-  const [pendingMembers, setPendingMembers] = useState(0);
-
-  const fetchOversight = useCallback(async () => {
-    if (!currentTeam?._id) return;
-    setLoading(true);
-    try {
-      const [covRes, pendingRes] = await Promise.all([
-        api.get(`/api/incharge/coverage?teamId=${currentTeam._id}&date=${dateStr}`),
-        api.get(`/api/incharge/pending-actions?teamId=${currentTeam._id}`),
-      ]);
-
-      if (covRes.data?.success) {
-        setCoverageSlots(covRes.data.coverage || []);
-      }
-      if (pendingRes.data?.success) {
-        setPendingSwaps(pendingRes.data.pendingSwapsCount || 0);
-        setPendingMembers(pendingRes.data.pendingMembersCount || 0);
-      }
-    } catch (err) {
-      console.error('Failed to load in-charge metrics:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [currentTeam?._id, dateStr]);
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { currentTeam, isSupervisor } = useTeam();
+  const navigate = useNavigate();
 
   useEffect(() => {
-    fetchOversight();
-  }, [fetchOversight]);
+    if (!authLoading && !isAuthenticated) {
+      navigate({ to: '/login' });
+    } else if (!authLoading && isAuthenticated && !isSupervisor) {
+      navigate({ to: '/roster' });
+    }
+  }, [authLoading, isAuthenticated, isSupervisor, navigate]);
+
+  const [dateStr, setDateStr] = useState<string>(() => new Date().toISOString().split('T')[0]);
+
+  // TanStack Query
+  const {
+    data,
+    isLoading: loading,
+    isFetching,
+    refetch,
+  } = useInChargeQuery(currentTeam?._id, dateStr);
+
+  const coverageSlots: CoverageSlot[] = data?.coverage || [];
+  const pendingSwaps = data?.pendingSwapsCount || 0;
+  const pendingMembers = data?.pendingMembersCount || 0;
 
   if (!currentTeam) {
     return (
@@ -101,7 +94,13 @@ export function InChargePage() {
             onChange={(e) => setDateStr(e.target.value)}
             className="h-9 px-3 rounded-lg border border-border bg-card text-xs font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
           />
-          <Button variant="outline" size="sm" onClick={fetchOversight} loading={loading} className="h-9">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            loading={loading || isFetching}
+            className="h-9"
+          >
             <RefreshCw className="h-3.5 w-3.5" />
           </Button>
         </div>

@@ -1,11 +1,21 @@
 import { createFileRoute, useNavigate, Link } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '@/context/auth-context';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
 import { toast } from '@/components/ui/sonner';
 import { Sparkles, ShieldCheck, UserCheck } from 'lucide-react';
+import { loginSchema, type LoginFormValues } from '@/schemas/auth';
 
 export const Route = createFileRoute('/login')({
   component: LoginPage,
@@ -14,21 +24,17 @@ export const Route = createFileRoute('/login')({
 function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [submitting, setSubmitting] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email || !password) {
-      toast.error('Please enter both email and password');
-      return;
-    }
+  const form = useForm<LoginFormValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: '',
+      password: '',
+    },
+  });
 
-    setSubmitting(true);
-    const res = await login(email, password);
-    setSubmitting(false);
-
+  const onSubmit = async (values: LoginFormValues) => {
+    const res = await login(values.email, values.password);
     if (res.success) {
       toast.success('Welcome back to Roosterly!');
       navigate({ to: '/roster' });
@@ -38,8 +44,8 @@ function LoginPage() {
   };
 
   const fillDemoAccount = (demoEmail: string) => {
-    setEmail(demoEmail);
-    setPassword('Password123!');
+    form.setValue('email', demoEmail, { shouldValidate: true });
+    form.setValue('password', 'Password123!', { shouldValidate: true });
   };
 
   return (
@@ -55,69 +61,94 @@ function LoginPage() {
           </CardDescription>
         </CardHeader>
 
-        <form onSubmit={handleLogin}>
-          <CardContent className="space-y-4 pt-2">
-            <Input
-              label="Work Email Address"
-              type="email"
-              placeholder="name@hospital.org"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoFocus
-            />
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)}>
+            <CardContent className="space-y-4 pt-2">
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Work Email Address</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="email"
+                        placeholder="name@hospital.org"
+                        autoComplete="email"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            <Input
-              label="Password"
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Password</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="password"
+                        placeholder="••••••••"
+                        autoComplete="current-password"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            {/* Quick Demo Fill Buttons */}
-            <div className="pt-2">
-              <span className="text-[11px] font-medium text-muted-foreground block mb-2">
-                Quick Demo Accounts (Local / Seeded):
-              </span>
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-8 text-xs gap-1.5 justify-start px-2 font-normal"
-                  onClick={() => fillDemoAccount('supervisor@roosterly.health')}
-                >
-                  <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
-                  Supervisor
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-8 text-xs gap-1.5 justify-start px-2 font-normal"
-                  onClick={() => fillDemoAccount('nurse.sarah@roosterly.health')}
-                >
-                  <UserCheck className="h-3.5 w-3.5 text-blue-600" />
-                  Staff Nurse
-                </Button>
+              {/* Quick Demo Fill Buttons */}
+              <div className="pt-2">
+                <span className="text-[11px] font-medium text-muted-foreground block mb-2">
+                  Quick Demo Accounts (Local / Seeded):
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs gap-1.5 justify-start px-2 font-normal"
+                    onClick={() => fillDemoAccount('supervisor@roosterly.health')}
+                  >
+                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+                    Supervisor
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs gap-1.5 justify-start px-2 font-normal"
+                    onClick={() => fillDemoAccount('nurse.sarah@roosterly.health')}
+                  >
+                    <UserCheck className="h-3.5 w-3.5 text-blue-600" />
+                    Staff Nurse
+                  </Button>
+                </div>
               </div>
-            </div>
-          </CardContent>
+            </CardContent>
 
-          <CardFooter className="flex flex-col gap-3 pt-2">
-            <Button type="submit" loading={submitting} className="w-full">
-              Sign In
-            </Button>
-            <p className="text-xs text-center text-muted-foreground">
-              Don't have an account?{' '}
-              <Link to="/register" className="text-primary font-medium hover:underline">
-                Create one now
-              </Link>
-            </p>
-          </CardFooter>
-        </form>
+            <CardFooter className="flex flex-col gap-3 pt-2">
+              <Button
+                type="submit"
+                loading={form.formState.isSubmitting}
+                className="w-full"
+              >
+                Sign In
+              </Button>
+              <p className="text-xs text-center text-muted-foreground">
+                Don't have an account?{' '}
+                <Link to="/register" className="text-primary font-medium hover:underline">
+                  Create one now
+                </Link>
+              </p>
+            </CardFooter>
+          </form>
+        </Form>
       </Card>
     </div>
   );

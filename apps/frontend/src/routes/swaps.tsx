@@ -1,13 +1,16 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { useState, useEffect, useCallback } from 'react';
-import api from '@/api/axios';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/auth-context';
 import { useTeam } from '@/context/team-context';
+import {
+  useSwapsQuery,
+  useClaimSwapMutation,
+  useReviewSwapMutation,
+} from '@/hooks/queries/use-swaps';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { toast } from '@/components/ui/sonner';
 import {
   Repeat,
   CheckCircle2,
@@ -23,69 +26,35 @@ export const Route = createFileRoute('/swaps')({
 });
 
 export function SwapsPage() {
-  const { user } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const { currentTeam, isSupervisor } = useTeam();
-
-  const [swaps, setSwaps] = useState<SwapRequest[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'open' | 'my' | 'review'>('open');
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
-
-  const fetchSwaps = useCallback(async () => {
-    if (!currentTeam?._id) return;
-    setLoading(true);
-    try {
-      const res = await api.get(`/api/swaps?teamId=${currentTeam._id}`);
-      if (res.data?.success && Array.isArray(res.data.swaps)) {
-        setSwaps(res.data.swaps);
-      }
-    } catch (err) {
-      console.error('Failed to load shift swaps:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [currentTeam?._id]);
+  const navigate = useNavigate();
 
   useEffect(() => {
-    fetchSwaps();
-  }, [fetchSwaps]);
-
-  const handleClaim = async (swapId: string) => {
-    setActionLoading(swapId);
-    try {
-      const res = await api.post(`/api/swaps/${swapId}/accept`);
-      if (res.data?.success) {
-        toast.success('Shift claim submitted! Awaiting supervisor approval.');
-        fetchSwaps();
-      } else {
-        toast.error(res.data?.message || 'Failed to claim shift');
-      }
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Error claiming shift');
-    } finally {
-      setActionLoading(null);
+    if (!authLoading && !isAuthenticated) {
+      navigate({ to: '/login' });
     }
+  }, [authLoading, isAuthenticated, navigate]);
+
+  const [activeTab, setActiveTab] = useState<'open' | 'my' | 'review'>('open');
+
+  // TanStack Query & Mutations
+  const {
+    data: swaps = [],
+    isLoading: loading,
+    isFetching,
+    refetch,
+  } = useSwapsQuery(currentTeam?._id);
+
+  const claimMutation = useClaimSwapMutation(currentTeam?._id);
+  const reviewMutation = useReviewSwapMutation(currentTeam?._id);
+
+  const handleClaim = (swapId: string) => {
+    claimMutation.mutate(swapId);
   };
 
-  const handleReview = async (swapId: string, action: 'APPROVE' | 'REJECT') => {
-    setActionLoading(swapId);
-    try {
-      const res = await api.post(`/api/swaps/${swapId}/review`, { action });
-      if (res.data?.success) {
-        toast.success(
-          action === 'APPROVE'
-            ? 'Shift swap approved! Schedule updated atomically.'
-            : 'Shift swap rejected.'
-        );
-        fetchSwaps();
-      } else {
-        toast.error(res.data?.message || 'Review failed');
-      }
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Error reviewing swap');
-    } finally {
-      setActionLoading(null);
-    }
+  const handleReview = (swapId: string, action: 'APPROVE' | 'REJECT') => {
+    reviewMutation.mutate({ swapId, action });
   };
 
   if (!currentTeam) {
@@ -104,27 +73,50 @@ export function SwapsPage() {
 
   // Filter categorizations
   const openBroadcasts = swaps.filter(
-    (s) => s.type === 'BROADCAST' && s.status === 'OPEN'
+    (s: SwapRequest) => s.type === 'BROADCAST' && s.status === 'OPEN'
   );
 
-  const mySwaps = swaps.filter((s) => {
-    const reqId = typeof s.requesterId === 'object' ? (s.requesterId as any)._id : s.requesterId;
-    const targetId = typeof s.targetEmployeeId === 'object' ? (s.targetEmployeeId as any)?._id : s.targetEmployeeId;
+  const mySwaps = swaps.filter((s: SwapRequest) => {
+    const reqId =
+      typeof s.requesterId === 'object' ? (s.requesterId as any)._id : s.requesterId;
+    const targetId =
+      typeof s.targetEmployeeId === 'object'
+        ? (s.targetEmployeeId as any)?._id
+        : s.targetEmployeeId;
     return reqId === user?._id || targetId === user?._id;
   });
 
   const pendingSupervisorReview = swaps.filter(
-    (s) => s.status === 'PENDING_APPROVAL' || (s.status === 'ACCEPTED' && isSupervisor)
+    (s: SwapRequest) =>
+      s.status === 'PENDING_APPROVAL' || (s.status === 'ACCEPTED' && isSupervisor)
   );
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'OPEN':
-        return <Badge variant="secondary" className="text-[10px] bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200">OPEN BROADCAST</Badge>;
+        return (
+          <Badge
+            variant="secondary"
+            className="text-[10px] bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200"
+          >
+            OPEN BROADCAST
+          </Badge>
+        );
       case 'PENDING_APPROVAL':
-        return <Badge variant="secondary" className="text-[10px] bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200">PENDING IN-CHARGE</Badge>;
+        return (
+          <Badge
+            variant="secondary"
+            className="text-[10px] bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200"
+          >
+            PENDING IN-CHARGE
+          </Badge>
+        );
       case 'APPROVED':
-        return <Badge variant="default" className="text-[10px] bg-emerald-600 text-white">APPROVED</Badge>;
+        return (
+          <Badge variant="default" className="text-[10px] bg-emerald-600 text-white">
+            APPROVED
+          </Badge>
+        );
       case 'REJECTED':
         return <Badge variant="destructive" className="text-[10px]">REJECTED</Badge>;
       default:
@@ -148,8 +140,8 @@ export function SwapsPage() {
         <Button
           variant="outline"
           size="sm"
-          onClick={fetchSwaps}
-          loading={loading}
+          onClick={() => refetch()}
+          loading={loading || isFetching}
           title="Refresh Swaps"
           className="h-9 px-2.5"
         >
@@ -207,7 +199,7 @@ export function SwapsPage() {
                       <Button
                         size="sm"
                         onClick={() => handleClaim(s._id)}
-                        loading={actionLoading === s._id}
+                        loading={claimMutation.isPending && claimMutation.variables === s._id}
                         className="text-xs shrink-0"
                       >
                         Claim Shift
@@ -270,6 +262,8 @@ export function SwapsPage() {
               pendingSupervisorReview.map((s) => {
                 const reqUser = typeof s.requesterId === 'object' ? (s.requesterId as any) : null;
                 const targetUser = typeof s.targetEmployeeId === 'object' ? (s.targetEmployeeId as any) : null;
+                const isReviewing =
+                  reviewMutation.isPending && reviewMutation.variables?.swapId === s._id;
 
                 return (
                   <Card key={s._id} className="border border-amber-500/30 bg-amber-50/10 dark:bg-amber-950/10 shadow-2xs">
@@ -291,7 +285,7 @@ export function SwapsPage() {
                           size="sm"
                           variant="outline"
                           onClick={() => handleReview(s._id, 'REJECT')}
-                          loading={actionLoading === s._id}
+                          loading={isReviewing && reviewMutation.variables?.action === 'REJECT'}
                           className="h-8 text-xs text-destructive hover:bg-destructive/10"
                         >
                           <XCircle className="h-3.5 w-3.5 mr-1" />
@@ -300,7 +294,7 @@ export function SwapsPage() {
                         <Button
                           size="sm"
                           onClick={() => handleReview(s._id, 'APPROVE')}
-                          loading={actionLoading === s._id}
+                          loading={isReviewing && reviewMutation.variables?.action === 'APPROVE'}
                           className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
                         >
                           <CheckCircle2 className="h-3.5 w-3.5 mr-1" />

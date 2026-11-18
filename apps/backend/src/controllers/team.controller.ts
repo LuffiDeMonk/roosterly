@@ -17,6 +17,7 @@ const generateTeamCode = (): string => {
 
 export const createTeamSchema = z.object({
   name: z.string().min(2, 'Team name must be at least 2 characters'),
+  department: z.string().optional(),
   description: z.string().optional(),
   organizationId: z.string().optional(),
   tier: z.enum(['FREE', 'PRO']).default('FREE'),
@@ -44,11 +45,11 @@ export const createTeam = async (
 ): Promise<void> => {
   try {
     if (!req.user) {
-      res.status(401).json({ error: 'Authentication required' });
+      res.status(401).json({ success: false, error: 'Authentication required' });
       return;
     }
 
-    const { name, description, tier, settings } = req.body;
+    const { name, department, description, tier, settings } = req.body;
     let organizationId = req.body.organizationId;
 
     if (!organizationId) {
@@ -83,6 +84,7 @@ export const createTeam = async (
     const team = await Team.create({
       organizationId,
       name,
+      department: department || description,
       description,
       code,
       tier: tier || 'FREE',
@@ -104,7 +106,8 @@ export const createTeam = async (
     });
 
     res.status(201).json({
-      message: 'Team created successfully',
+      success: true,
+      message: 'Ward team created successfully',
       team,
       membership,
     });
@@ -181,6 +184,7 @@ export const joinTeam = async (
     });
 
     res.status(201).json({
+      success: true,
       message: 'Join request submitted and awaiting supervisor approval',
       team: {
         _id: team._id,
@@ -201,15 +205,61 @@ export const getMyTeams = async (
 ): Promise<void> => {
   try {
     if (!req.user) {
-      res.status(401).json({ error: 'Authentication required' });
+      res.status(401).json({ success: false, error: 'Authentication required' });
       return;
     }
 
-    const memberships = await Membership.find({ userId: req.user._id })
+    const memberships = await Membership.find({
+      userId: req.user._id,
+      status: { $ne: 'REJECTED' },
+    })
       .populate('teamId')
       .populate('organizationId', 'name code timezone');
 
-    res.json({ memberships });
+    const teamMap = new Map<string, any>();
+    for (const m of memberships) {
+      if (m.teamId && (m.teamId as any)._id) {
+        teamMap.set((m.teamId as any)._id.toString(), m.teamId);
+      }
+    }
+
+    // Check if user is ORG_ADMIN or PLATFORM_ADMIN
+    const isOrgAdmin =
+      Boolean(req.user.roles?.includes('ORG_ADMIN')) ||
+      Boolean(req.user.roles?.includes('PLATFORM_ADMIN')) ||
+      memberships.some(
+        (m) => m.roles?.includes('ORG_ADMIN') || m.role === 'ADMIN'
+      );
+
+    if (isOrgAdmin) {
+      const orgIds = memberships
+        .map((m) => {
+          const org = m.organizationId as any;
+          return org?._id || org;
+        })
+        .filter(Boolean);
+
+      if (orgIds.length > 0) {
+        const orgTeams = await Team.find({
+          organizationId: { $in: orgIds },
+          status: 'ACTIVE',
+        }).populate('organizationId', 'name code timezone');
+
+        for (const t of orgTeams) {
+          if (!teamMap.has(t._id.toString())) {
+            teamMap.set(t._id.toString(), t);
+          }
+        }
+      }
+    }
+
+    const teams = Array.from(teamMap.values());
+
+    res.json({
+      success: true,
+      teams,
+      memberships,
+    });
   } catch (error) {
     next(error);
   }

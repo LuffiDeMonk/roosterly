@@ -5,6 +5,8 @@ import {
   Scripts,
 } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
+import { QueryClientProvider } from '@tanstack/react-query'
+import { queryClient } from '@/lib/query-client'
 import { NotFound } from '@/components/NotFound'
 import { AuthProvider } from '@/context/auth-context'
 import { TeamProvider } from '@/context/team-context'
@@ -40,14 +42,16 @@ export const Route = createRootRoute({
 function RootComponent() {
   return (
     <RootDocument>
-      <AuthProvider>
-        <TeamProvider>
-          <AppShell>
-            <Outlet />
-          </AppShell>
-          <Toaster richColors position="top-right" />
-        </TeamProvider>
-      </AuthProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <TeamProvider>
+            <AppShell>
+              <Outlet />
+            </AppShell>
+            <Toaster richColors position="top-right" />
+          </TeamProvider>
+        </AuthProvider>
+      </QueryClientProvider>
     </RootDocument>
   )
 }

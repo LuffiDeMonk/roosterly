@@ -14,6 +14,7 @@ export interface ITeam {
   facilityId?: Types.ObjectId;
   name: string;
   code: string;
+  department?: string;
   description?: string;
   tier: TeamTier;
   maxMembers: number;
@@ -51,6 +52,10 @@ const TeamSchema = new Schema<ITeam>(
       uppercase: true,
       trim: true,
       index: true,
+    },
+    department: {
+      type: String,
+      trim: true,
     },
     description: {
       type: String,
